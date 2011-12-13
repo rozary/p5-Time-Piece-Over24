@@ -201,8 +201,7 @@ sub _from_over24 {
       $self->strptime( sprintf( "%s %s", $date, $time ), "%Y-%m-%d %T" );
 
     $time = $OVER24_BASETIME + int( $hms[0] / 24 ) * 86400;
-    $time -= 86400 if ($self->over24_offset ne "00:00:00" && $self->_over24_offset_object < $time);
-    print 1111;
+    $time -= 86400 if ($self->over24_offset ne "00:00:00" && $self->_over24_offset_object < $self->datetime);
     return $time;
 }
 
