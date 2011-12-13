@@ -5,7 +5,7 @@ use warnings;
 use vars qw/$VERSION/;
 use Time::Piece;
 
-$VERSION = "0.011";
+$VERSION = "0.014";
 my $OVER24_OFFSET   = '00:00:00';
 my $OVER24_BASETIME = localtime;
 
@@ -200,7 +200,10 @@ sub _from_over24 {
     $OVER24_BASETIME =
       $self->strptime( sprintf( "%s %s", $date, $time ), "%Y-%m-%d %T" );
 
-    return $OVER24_BASETIME + int( $hms[0] / 24 ) * 86400;
+    $time = $OVER24_BASETIME + int( $hms[0] / 24 ) * 86400;
+    $time -= 86400 if ($self->over24_offset ne "00:00:00" && $self->_over24_offset_object < $time);
+    print 1111;
+    return $time;
 }
 
 1;
