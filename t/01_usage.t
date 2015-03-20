@@ -1,3 +1,7 @@
+BEGIN {
+  $ENV{TZ} = "GMT";
+}
+
 use strict;
 use warnings;
 
@@ -8,6 +12,7 @@ use Time::Piece::Over24;
 
 my $t    = localtime;
 my $base = localtime->from_mysql_datetime("2010-12-31 00:00:00");
+my $TIME_DIFFERENCE = 0 * 3600;
 
 my $time = 0;
 while ( $time < 86400 * 2 ) {
@@ -88,7 +93,7 @@ while ( $time < 86400 * 2 ) {
     is $over->is_during( $start, $over24_end, $base ), $check_during,
       "is_during time piece";
 
-    set_absolute_time( ( $base - 9 * 60 * 60 )->datetime . 'Z' );
+    set_fixed_time( ( $base - $TIME_DIFFERENCE )->datetime . 'Z' );
     my $mock_base = localtime;
     $check_during = ( $start <= $mock_base && $mock_base <= $end ) ? 1 : undef;
     is $over->is_during( $start, $end ), $check_during, "is_during now";
