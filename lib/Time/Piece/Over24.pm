@@ -5,7 +5,7 @@ use warnings;
 use vars qw/$VERSION/;
 use Time::Piece;
 
-$VERSION = "0.015";
+$VERSION = "0.016";
 my $OVER24_OFFSET   = '00:00:00';
 my $OVER24_BASETIME = localtime;
 
