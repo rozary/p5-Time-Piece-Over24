@@ -6,13 +6,15 @@ use warnings;
 use vars qw/$VERSION/;
 use Time::Piece;
 
-$VERSION = "0.016";
+$VERSION = "0.020";
 my $OVER24_OFFSET   = '00:00:00';
 my $OVER24_BASETIME = localtime;
 
 sub import { shift; @_ = ( "Time::Piece", @_ ); goto &Time::Piece::import }
 
 package Time::Piece;
+use DDP;
+use Storable qw/dclone/;
 
 sub over24 {
     my ( $self, $time ) = @_;
@@ -106,16 +108,21 @@ sub from_over24_datetime {
 
 sub over24_offset {
     my ( $self, $offset ) = @_;
-    if ($offset) {
 
-        #just time
+    if ($offset) {
+        #just hour
         if ( $offset =~ /^\d\d?$/ ) {
             $offset = sprintf( "%02d:00:00", $offset );
         }
+        #hour:min
         elsif ( $offset =~ /^\d\d?:\d\d$/ ) {
             $offset .= ":00";
         }
         $OVER24_OFFSET = $offset;
+        my $offset_sec = $self->_offset_sec();
+        if ($offset_sec < 0 || ONE_DAY <= $offset_sec) {
+          croak "out of offset range";
+        }
     }
     return $OVER24_OFFSET;
 }
@@ -125,9 +132,6 @@ sub is_during {
     my $start_time = shift || die "need start_time";
     my $end_time   = shift || die "need end_time";
     my $check_time = shift || $self;
-
-    my $buf_offset = $self->over24_offset;
-    $self->over24_offset("00:00:00");
 
     unless ( ( ref($start_time) eq "Time::Piece" ) ==
         ( ref($end_time) eq "Time::Piece" ) )
@@ -139,13 +143,8 @@ sub is_during {
         die "start_time and end_time is different format";
     }
 
-    my $div = 0;
     unless ( ref($check_time) eq "Time::Piece" ) {
-        my $buf = $check_time;
         $check_time = $self->over24($check_time);
-        if ( $buf =~ /^\d\d:\d\d$/ ) {
-            $div = int( $check_time->over24_hour / 24 );
-        }
     }
 
     my ( $start_t, $end_t );
@@ -154,16 +153,14 @@ sub is_during {
         $end_t   = $end_time;
     }
     else {
-        my $t        = $check_time;
-        my $div_time = 86400 * $div;
-        $start_t = $t->over24($start_time) - $div_time;
-        $end_t   = $t->over24($end_time) - $div_time;
+      # to time_piece
+        $start_t = $self->from_over24($start_time);
+        $end_t   = $self->from_over24($end_time);
     }
 
     my $rtn = ( ( $start_t <= $check_time ) && ( $check_time <= $end_t ) )
       ? '1'
       : undef;
-    $self->over24_offset($buf_offset);
     return $rtn;
 }
 
@@ -178,35 +175,56 @@ sub _over24_offset_object {
 
 sub _over24_offset_pattern {
   my ($self) = @_;
-  my $ts    = $self - $self->_over24_offset_object;
 
   my $offset_sec = $self->_offset_sec();
   my @hms = split /:/, $self->hms;
   my $sec = $self->_hms_to_sec(\@hms);
-  if ($offset_sec != 0 && $offset_sec > $sec) {
-    $self -= $offset_sec;
-    $sec = $sec + ONE_DAY;
+#  my $offset_day_sec = ONE_DAY * (int($offset_sec / ONE_DAY));
+  if (0 < $offset_sec && $sec < $offset_sec) {
+    #in offset
+     $self -= ONE_DAY;
+     $sec = $sec + ONE_DAY;
   }
   my $hour = int($sec / ONE_HOUR);
   return ( $self, $hour );
 }
 
+# done test
 sub _from_over24 {
   my ( $self, $datetime ) = @_;
 
   my @hms = split /[\s:]/, $datetime;
+  #date str:2015-10-04
+  #hms array:(23,44,18)
   my $date = shift @hms;
 
   #sec
-  my $sec = $self->_hms_to_sec(\@hms);
+  my ($day,$hms) = $self->_hms_to_day_and_24_hours_less(\@hms);
+
+  say $day;
+  say $hms;
 
   #date
-  my $base = $self->strptime( sprintf( "%s %s", $date, '00:00:00' ), "%Y-%m-%d %T" );
-  my $time = $base + $sec;
-
-  return $time;
+  say sprintf( "%s %s", $date, $hms );
+  say $self->isdst;
+  my $base = dclone $self;
+  $base = $base->strptime( $date, "%Y-%m-%d" );
+  say p $base;
+  say p $self;
+  say $base->isdst . "まえ";
+  $base = $base;
+  say $base->isdst ."あと";
+  say $base;
+  say $hms;
+  my $test = $base->strptime( $base->date ." ". $hms, "%Y-%m-%d %T" );
+  say $test->isdst;
+  say $test ."テスト";
+  say $test->epoch;
+  my $t2 = $self->strptime($test->epoch,"%s");
+  return $t2;
 }
 
+# オフセットを秒で返す。
 sub _offset_sec {
   my $self = shift;
   my $offset = $self->over24_offset();
@@ -215,9 +233,21 @@ sub _offset_sec {
   return $self->_hms_to_sec(\@hms);
 }
 
+# done test
 sub _hms_to_sec {
   my ($self,$hms) = @_;
   return $hms->[0] * ONE_HOUR + $hms->[1] * ONE_MINUTE + $hms->[2]; 
+}
+
+# hmsから日数を出す、それ以下はtime pieceのパースをさせる
+# 1時をぱーすすると2時になる
+# 2時をパースすると2時になるを実現するには時間分の秒数を足し込むでは吸収できない
+# だので時間部分はTime::Piece側で吸収してもらう。
+sub _hms_to_day_and_24_hours_less {
+  my ($self,$hms) = @_;
+  my $day = int ($hms->[0] / 24);
+  my $hour = $hms->[0] % 24;
+  return $day,sprintf('%02d:%02d:%02d',$hour,$hms->[1],$hms->[2]);
 }
 
 1;

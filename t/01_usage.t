@@ -6,7 +6,7 @@ use strict;
 use warnings;
 
 use Test::MockTime qw/:all/;
-use Test::More tests => 4080;
+use Test::More tests => 2064;
 use Time::Piece::MySQL;
 use Time::Piece::Over24;
 
@@ -15,7 +15,7 @@ my $base = localtime->from_mysql_datetime("2010-12-31 00:00:00");
 my $TIME_DIFFERENCE = 0 * 3600;
 
 my $time = 0;
-while ( $time < 86400 * 2 ) {
+while ( $time < 86400 * 1 ) {
     my $day = int( $time / 86400 );
 
     #parse time test

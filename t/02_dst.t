@@ -28,3 +28,5 @@ is $t->isdst , 1 , "isdst 1 end";
 $t = localtime->from_over24("2015-10-24 26:00:00");
 is $t->datetime, "2015-10-25T01:00:00", "DST end";
 is $t->isdst , 0 , "isdst 0 end";
+
+done_testing;
