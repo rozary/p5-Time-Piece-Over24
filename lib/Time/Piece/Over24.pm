@@ -13,8 +13,6 @@ my $OVER24_BASETIME = localtime;
 sub import { shift; @_ = ( "Time::Piece", @_ ); goto &Time::Piece::import }
 
 package Time::Piece;
-use DDP;
-use Storable qw/dclone/;
 
 sub over24 {
     my ( $self, $time ) = @_;
@@ -199,29 +197,13 @@ sub _from_over24 {
   my $date = shift @hms;
 
   #sec
-  my ($day,$hms) = $self->_hms_to_day_and_24_hours_less(\@hms);
-
-  say $day;
-  say $hms;
+  my $sec = $self->_hms_to_sec(\@hms);
 
   #date
-  say sprintf( "%s %s", $date, $hms );
-  say $self->isdst;
-  my $base = dclone $self;
-  $base = $base->strptime( $date, "%Y-%m-%d" );
-  say p $base;
-  say p $self;
-  say $base->isdst . "まえ";
-  $base = $base;
-  say $base->isdst ."あと";
-  say $base;
-  say $hms;
-  my $test = $base->strptime( $base->date ." ". $hms, "%Y-%m-%d %T" );
-  say $test->isdst;
-  say $test ."テスト";
-  say $test->epoch;
-  my $t2 = $self->strptime($test->epoch,"%s");
-  return $t2;
+  my $base = $self->strptime( sprintf( "%s %s", $date, '00:00:00' ), "%Y-%m-%d %T" );
+  my $time = $base + $sec;
+
+  return $time;
 }
 
 # オフセットを秒で返す。
@@ -237,17 +219,6 @@ sub _offset_sec {
 sub _hms_to_sec {
   my ($self,$hms) = @_;
   return $hms->[0] * ONE_HOUR + $hms->[1] * ONE_MINUTE + $hms->[2]; 
-}
-
-# hmsから日数を出す、それ以下はtime pieceのパースをさせる
-# 1時をぱーすすると2時になる
-# 2時をパースすると2時になるを実現するには時間分の秒数を足し込むでは吸収できない
-# だので時間部分はTime::Piece側で吸収してもらう。
-sub _hms_to_day_and_24_hours_less {
-  my ($self,$hms) = @_;
-  my $day = int ($hms->[0] / 24);
-  my $hour = $hms->[0] % 24;
-  return $day,sprintf('%02d:%02d:%02d',$hour,$hms->[1],$hms->[2]);
 }
 
 1;
